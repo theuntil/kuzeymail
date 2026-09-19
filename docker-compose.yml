@@ -1,0 +1,76 @@
+# ############################################################
+#  Kuzeybatı Haber — Mail Servisi
+#
+#  Dokploy: Compose Type = docker-compose
+#  Bu dosya deponun KÖKÜNDE olmalı; Dokploy burayı arıyor.
+#
+#  Ortam değişkenlerini Dokploy'un "Environment" sekmesine gir.
+#  .env dosyası depoya KONMAZ.
+# ############################################################
+services:
+  mail:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+
+    # ┌─ BEYAZ LİSTE ⚠️ ────────────────────────────────────────┐
+    # │ Burada yazmayan değişken, Dokploy Environment'a girilse   │
+    # │ bile konteynere ULAŞMAZ. Yeni değişkende burayı da güncelle│
+    # └────────────────────────────────────────────────────────────┘
+    environment:
+      # ---- Supabase ----
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY}
+
+      # ---- SMTP ----
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+
+      # ---- Site ----
+      SITE_URL: ${SITE_URL:-https://kuzeybatihaber.com.tr}
+      # Boşsa SMTP_USER kullanılır (sunucu kesin kabul eder)
+      MAIL_FROM: ${MAIL_FROM:-}
+
+      # ---- HTTP API ----
+      # Boş bırakılırsa /api/send hiç açılmaz (en güvenli mod).
+      MAIL_API_KEY: ${MAIL_API_KEY:-}
+      API_RATE_MAX: ${API_RATE_MAX:-60}
+      API_ALLOW_IPS: ${API_ALLOW_IPS:-}
+
+      # ---- Çalışma ----
+      WORKER_NAME: ${WORKER_NAME:-mail-1}
+      POLL_MS: ${POLL_MS:-15000}
+      RECOVER_MINUTES: ${RECOVER_MINUTES:-10}
+      PORT: 8080
+
+
+      # ---- Cloudflare R2 (mail ekleri) ----
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_REGION: ${S3_REGION:-auto}
+      S3_BUCKET: ${S3_BUCKET:-haber-medya}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+    expose:
+      - "8080"
+
+    # Dokploy alan adını (mail.kuzeybati.cloud) bu porta bağlar.
+    # Traefik etiketlerini Dokploy kendisi ekler; buraya yazma.
+    ports:
+      - "8080"
+
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
